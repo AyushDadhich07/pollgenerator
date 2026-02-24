@@ -65,9 +65,11 @@ def generate_polls_from_context(
     """
     client = Groq(api_key=api_key)
 
+    subreddit_label = source_label if source_label else "Reddit"
     prompt = USER_TEMPLATE.format(
-        context=context[:6000],  # Groq context window is large but we cap for speed
+        context=context[:12000],
         n_polls=n_polls,
+        subreddit_label=subreddit_label,
     )
 
     response = client.chat.completions.create(
