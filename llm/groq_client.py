@@ -26,7 +26,7 @@ Categories allowed: Cricket, Bollywood, Crypto, Economy, Sports, Technology, Soc
 
 Return ONLY a valid JSON array. No markdown, no explanation, no preamble."""
 
-USER_TEMPLATE = """Based on these trending Indian topics:
+USER_TEMPLATE = """Based on these trending posts from {subreddit_label}:
 
 {context}
 
