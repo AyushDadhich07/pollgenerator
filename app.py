@@ -139,6 +139,7 @@ for _k, _v in {
     "pending_polls": [],
     "approved_polls": [],
     "activity_log": [],
+    "last_scraped_posts": {},
 }.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
@@ -306,6 +307,8 @@ with tab_gen:
                         status.info(f"🔄 Scraping r/{sub_name}...")
                         
                         sub_posts = fetch_reddit_posts(None, None, [sub_name], reddit_sort, reddit_limit)
+                        # Store last scraped posts so titles/links can be inspected in the UI
+                        st.session_state.last_scraped_posts[sub_name] = sub_posts or []
                         if not sub_posts:
                             add_log(f"⚠️ No posts from r/{sub_name}, skipping")
                             continue
@@ -404,6 +407,22 @@ with tab_gen:
                 progress.empty()
 
 
+    # ── Inspect last scraped Reddit titles ─────────────────────────────────────
+    if st.session_state.get("last_scraped_posts"):
+        with st.expander("🧾 Last scraped Reddit post titles", expanded=False):
+            for _sub, _posts in st.session_state.last_scraped_posts.items():
+                st.markdown(f"**r/{_sub}** — {len(_posts)} posts")
+                for _p in _posts:
+                    _t = (_p.get("title") or "").strip()
+                    _u = (_p.get("url") or "").strip()
+                    if not _t:
+                        continue
+                    if _u:
+                        st.markdown(f"- [{_t}]({_u})")
+                    else:
+                        st.markdown(f"- {_t}")
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # TAB 2 — REVIEW
 # ═════════════════════════════════════════════════════════════════════════════
@@ -446,6 +465,14 @@ with tab_review:
 
                 h1, h2, h3 = st.columns([5, 1, 1])
                 with h1:
+                    # Optional subreddit badge (present for Reddit-generated polls)
+                    _sub = poll.get("subreddit")
+                    subreddit_tag = ""
+                    if _sub:
+                        subreddit_tag = (
+                            f'<span class="tag" style="margin-left:6px;background:#0ea5e922;color:#0ea5e9;border:1px solid #0ea5e955">r/{_sub}</span>'
+                        )
+
                     st.markdown(
                         f'<span class="tag" style="background:{cat_color}22;color:{cat_color};border:1px solid {cat_color}55">{cat.upper()}</span>'
                         f'{subreddit_tag}'
