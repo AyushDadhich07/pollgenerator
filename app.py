@@ -293,15 +293,75 @@ with tab_gen:
                 if "Reddit" in source_choice:
                     status.info("🔄 Scraping Reddit posts...")
                     add_log(f"Scraping Reddit: {', '.join(subreddits)}")
-                    posts = fetch_reddit_posts(None, None, subreddits, reddit_sort, reddit_limit)
-                    raw_items = [f"r/{p['subreddit']}: {p['title']}" for p in posts]
-                    context_text = "\n".join([
-                        f"- {p['title']} (r/{p['subreddit']}, {p['score']} upvotes, {p['comments']} comments)"
-                        for p in posts
-                    ])
-                    source_label = "Reddit · " + " · ".join([f"r/{s}" for s in subreddits[:4]])
-                    add_log(f"Scraped {len(posts)} posts")
-                    progress.progress(30, text=f"Got {len(posts)} Reddit posts...")
+                    
+                    # Calculate polls per subreddit
+                    polls_per_sub = max(1, polls_per_source // len(subreddits))
+                    all_new_polls = []
+                    
+                    for sub_idx, sub_name in enumerate(subreddits):
+                        progress.progress(
+                            10 + int(40 * sub_idx / len(subreddits)),
+                            text=f"Scraping r/{sub_name}..."
+                        )
+                        status.info(f"🔄 Scraping r/{sub_name}...")
+                        
+                        sub_posts = fetch_reddit_posts(None, None, [sub_name], reddit_sort, reddit_limit)
+                        if not sub_posts:
+                            add_log(f"⚠️ No posts from r/{sub_name}, skipping")
+                            continue
+                        
+                        sub_raw_items = [
+                            f"{p['title']} · ⬆️{p['score']} 💬{p['comments']}"
+                            for p in sub_posts
+                        ]
+                        context_text = "\n".join([
+                            f"- {p['title']} (score:{p['score']}, comments:{p['comments']}, flair:{p['flair']})\n  {p['selftext']}"
+                            for p in sub_posts
+                        ])
+                        source_label = f"Reddit · r/{sub_name}"
+                        
+                        context_text = filter_political_content(context_text)
+                        
+                        progress.progress(
+                            10 + int(40 * (sub_idx + 0.5) / len(subreddits)),
+                            text=f"Generating polls for r/{sub_name}..."
+                        )
+                        status.info(f"🤖 Generating {polls_per_sub} polls from r/{sub_name}...")
+                        
+                        allowed_cats = cat_filter_gen if cat_filter_gen else CATEGORIES
+                        sub_polls = generate_polls_from_context(
+                            api_key=GROQ_KEY,
+                            model=GROQ_MODEL,
+                            context=context_text,
+                            n_polls=polls_per_sub,
+                            categories=allowed_cats,
+                            source_label=source_label,
+                        )
+                        
+                        # Tag each poll with its exact subreddit and matching source posts
+                        for p in sub_polls:
+                            p["source_items"] = sub_raw_items
+                            p["subreddit"] = sub_name
+                        
+                        add_log(f"r/{sub_name}: {len(sub_polls)} polls generated from {len(sub_posts)} posts")
+                        all_new_polls.extend(sub_polls)
+                    
+                    # Apply controversy filter
+                    filtered = [
+                        p for p in all_new_polls
+                        if p.get("controversy_score", 0) >= min_controversy
+                        and (not cat_filter_gen or p.get("category") in cat_filter_gen)
+                    ]
+                    discarded = len(all_new_polls) - len(filtered)
+                    st.session_state.pending_polls.extend(filtered)
+                    add_log(f"✅ {len(filtered)} polls added, {discarded} discarded")
+                    
+                    progress.progress(100, text="Done!")
+                    status.success(f"✅ {len(filtered)} polls ready — head to REVIEW tab!")
+                    time.sleep(1.5)
+                    status.empty()
+                    progress.empty()
+                    st.rerun()
 
                 elif "NewsAPI" in source_choice:
                     status.info("🔄 Fetching from NewsAPI...")
@@ -336,48 +396,7 @@ with tab_gen:
                     progress.progress(30, text="Using manual input...")
                     add_log("Manual topic input used")
 
-                # ── Filter ────────────────────────────────────────────────────
-                progress.progress(50, text="Filtering political content...")
-                status.info("🔍 Removing political content...")
-                context_text = filter_political_content(context_text)
-                add_log("Political filter applied")
-
-                # ── Generate ──────────────────────────────────────────────────
-                progress.progress(60, text="Calling Groq LLM...")
-                status.info(f"🤖 Generating polls with {GROQ_MODEL}...")
-                add_log(f"Groq call: {polls_per_source} polls requested")
-
-                allowed_cats = cat_filter_gen if cat_filter_gen else CATEGORIES
-                new_polls = generate_polls_from_context(
-                    api_key=GROQ_KEY,
-                    model=GROQ_MODEL,
-                    context=context_text,
-                    n_polls=polls_per_source,
-                    categories=allowed_cats,
-                    source_label=source_label,
-                )
-
-                progress.progress(90, text="Applying filters...")
-
-                for p in new_polls:
-                    p["source_items"] = raw_items
-
-                filtered = [
-                    p for p in new_polls
-                    if p.get("controversy_score", 0) >= min_controversy
-                    and (not cat_filter_gen or p.get("category") in cat_filter_gen)
-                ]
-
-                st.session_state.pending_polls.extend(filtered)
-                discarded = len(new_polls) - len(filtered)
-                add_log(f"✅ {len(filtered)} polls added, {discarded} discarded (score < {min_controversy})")
-
-                progress.progress(100, text="Done!")
-                status.success(f"✅ {len(filtered)} polls ready — head to REVIEW tab!")
-                time.sleep(1.5)
-                status.empty()
-                progress.empty()
-                st.rerun()
+                
 
             except Exception as e:
                 status.error(f"❌ {str(e)}")
@@ -429,6 +448,7 @@ with tab_review:
                 with h1:
                     st.markdown(
                         f'<span class="tag" style="background:{cat_color}22;color:{cat_color};border:1px solid {cat_color}55">{cat.upper()}</span>'
+                        f'{subreddit_tag}'
                         f'<span class="source-badge">{poll.get("source","?")}</span>',
                         unsafe_allow_html=True
                     )
