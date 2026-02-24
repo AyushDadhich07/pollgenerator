@@ -1,55 +1,51 @@
 """
-Reddit scraper using PRAW (Python Reddit API Wrapper).
-Pulls hot/top/rising posts from specified subreddits.
+Reddit scraper using public JSON API — zero auth required.
+Just appends .json to Reddit URLs. Works for all public subreddits.
 """
-import praw
+import requests
+import time
 from typing import List, Dict
+
+HEADERS = {"User-Agent": "CrowdVerse-PollTool/1.0"}
 
 
 def fetch_reddit_posts(
-    client_id: str,
-    client_secret: str,
+    client_id: str,        # ignored, kept for compatibility
+    client_secret: str,    # ignored, kept for compatibility
     subreddits: List[str],
     sort: str = "hot",
     limit: int = 10,
 ) -> List[Dict]:
     """
-    Fetch posts from given subreddits.
-
-    Returns list of dicts with: title, subreddit, score, comments, url, selftext
+    Fetch posts using Reddit's public .json endpoint.
+    No API key or app registration needed.
     """
-    reddit = praw.Reddit(
-        client_id=client_id,
-        client_secret=client_secret,
-        user_agent="CrowdVerse Poll Tool v1.0 (by /u/crowdverse_dev)",
-    )
-
     posts = []
+
     for sub_name in subreddits:
         try:
-            sub = reddit.subreddit(sub_name)
-            if sort == "hot":
-                submissions = sub.hot(limit=limit)
-            elif sort == "top":
-                submissions = sub.top("week", limit=limit)
-            else:
-                submissions = sub.rising(limit=limit)
+            url = f"https://www.reddit.com/r/{sub_name}/{sort}.json?limit={limit}"
+            resp = requests.get(url, headers=HEADERS, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
 
-            for post in submissions:
-                # Skip stickied mod posts
-                if post.stickied:
+            for item in data["data"]["children"]:
+                post = item["data"]
+                if post.get("stickied"):
                     continue
                 posts.append({
-                    "title": post.title,
+                    "title": post.get("title", ""),
                     "subreddit": sub_name,
-                    "score": post.score,
-                    "comments": post.num_comments,
-                    "url": post.url,
-                    "selftext": post.selftext[:300] if post.selftext else "",
-                    "flair": post.link_flair_text or "",
+                    "score": post.get("score", 0),
+                    "comments": post.get("num_comments", 0),
+                    "url": post.get("url", ""),
+                    "selftext": post.get("selftext", "")[:300],
+                    "flair": post.get("link_flair_text", "") or "",
                 })
+
+            time.sleep(1)  # be polite, avoid rate limiting
+
         except Exception as e:
-            # If subreddit fails (private, banned, etc.) just skip it
             print(f"[reddit_scraper] Skipping r/{sub_name}: {e}")
             continue
 
