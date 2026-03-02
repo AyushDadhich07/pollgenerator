@@ -61,6 +61,14 @@ st.markdown("""
         margin-bottom: 14px;
     }
     .poll-card:hover { border-color: #333; }
+    .poll-card-genz {
+        background: #0f0a1a;
+        border: 1px solid #2a1a3a;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 14px;
+    }
+    .poll-card-genz:hover { border-color: #3a1a5a; }
     .approved-card {
         background: #0d1a12;
         border: 1px solid #1a3a1a;
@@ -75,6 +83,17 @@ st.markdown("""
         padding: 20px;
         margin-bottom: 16px;
     }
+    .genz-mode-banner {
+        background: linear-gradient(135deg, #1a0a2a, #0a0a1a);
+        border: 1px solid #6b21a8;
+        border-radius: 10px;
+        padding: 12px 20px;
+        margin-bottom: 16px;
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: #a855f7;
+        letter-spacing: 1px;
+    }
     .tag {
         display: inline-block;
         padding: 3px 10px;
@@ -83,6 +102,16 @@ st.markdown("""
         font-weight: 600;
         letter-spacing: 1px;
         margin-right: 6px;
+        font-family: 'Space Mono', monospace;
+    }
+    .vibe-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        margin-right: 4px;
         font-family: 'Space Mono', monospace;
     }
     .controversy-high { color: #ff0050; font-weight: 700; font-family: 'Space Mono', monospace; }
@@ -131,6 +160,18 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] { font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 2px; color: #555; padding: 12px 20px; }
     .stTabs [aria-selected="true"] { color: #ff6b00 !important; border-bottom-color: #ff6b00 !important; }
     hr { border-color: #1f1f1f; }
+
+    .subreddit-chip {
+        display: inline-block;
+        background: #1a1a2a;
+        border: 1px solid #2a2a4a;
+        border-radius: 12px;
+        padding: 2px 8px;
+        font-size: 10px;
+        color: #7c7cff;
+        margin: 2px;
+        font-family: 'Space Mono', monospace;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -140,6 +181,7 @@ for _k, _v in {
     "approved_polls": [],
     "activity_log": [],
     "last_scraped_posts": {},
+    "genz_mode": False,
 }.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
@@ -153,26 +195,61 @@ def add_log(msg: str):
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 CATEGORY_COLORS = {
-    "Cricket":       "#10b981",
-    "Bollywood":     "#f59e0b",
-    "Crypto":        "#8b5cf6",
-    "Economy":       "#3b82f6",
-    "Sports":        "#06b6d4",
-    "Technology":    "#64748b",
-    "Social Issues": "#ec4899",
-    "Entertainment": "#f97316",
-    "Business":      "#14b8a6",
+    "Cricket":               "#10b981",
+    "Bollywood":             "#f59e0b",
+    "Crypto":                "#8b5cf6",
+    "Economy":               "#3b82f6",
+    "Sports":                "#06b6d4",
+    "Technology":            "#64748b",
+    "Social Issues":         "#ec4899",
+    "Entertainment":         "#f97316",
+    "Business":              "#14b8a6",
+    "Dating & Relationships": "#ff6b9d",
+    "Gaming":                "#22d3ee",
+    "Career & Campus":       "#a3e635",
+    "Pop Culture":           "#f472b6",
 }
 CATEGORIES = list(CATEGORY_COLORS.keys())
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
-# API keys from environment — set in Streamlit Cloud secrets or local .env
 GROQ_KEY    = os.getenv("GROQ_API_KEY", "")
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "")
 GNEWS_KEY   = os.getenv("GNEWS_KEY", "")
 
+# ── All available subreddits organised by theme ───────────────────────────────
+SUBREDDIT_OPTIONS = {
+    # Original / core
+    "🏏 Cricket & Sports":    ["Cricket", "ipl", "IndianSports", "FantasyPowerPlay11"],
+    "🎬 Entertainment":       ["bollywood", "bollywoodmemes", "IndianCinema", "desimemes", "BollyBlindsNGossip"],
+    "💰 Finance & Crypto":    ["IndianStreetBets", "CryptoCurrencyIndia", "IndiaInvestments", "IndianStockMarket"],
+    "🛠️ Tech & Startups":     ["IndiaTech", "startups", "Entrepreneur", "developersIndia", "IndianGaming"],
+    "🔥 GenZ Controversy":    ["AskIndia", "india", "UnitedStatesOfIndia", "TwoXIndia", "IndiaSocial"],
+    "💘 Dating & Life":       ["RelationshipIndia", "Arrangedmarriage", "ForeverAloneIndia", "DatingAppsIndia"],
+    "🎓 Career & Campus":     ["Indian_Academia", "cscareerquestionsIN", "CATpreparation", "UPSC"],
+}
+ALL_SUBREDDITS = [sub for group in SUBREDDIT_OPTIONS.values() for sub in group]
+
+DEFAULT_SUBREDDITS = ["AskIndia", "Cricket", "bollywood", "IndianStreetBets", "RelationshipIndia", "IndiaTech", "BollyBlindsNGossip"]
+
+VIBE_COLORS = {
+    "Spicy":  ("#ff0050", "#1a0010"),
+    "Drama":  ("#f59e0b", "#1a1000"),
+    "Clout":  ("#8b5cf6", "#10081a"),
+    "Grind":  ("#10b981", "#001a10"),
+    "Cope":   ("#64748b", "#0a0f14"),
+    "Wild":   ("#06b6d4", "#00141a"),
+    "Tea":    ("#f97316", "#1a0a00"),
+}
+
+
+def vibe_badge(vibe: str) -> str:
+    color, bg = VIBE_COLORS.get(vibe, ("#888", "#111"))
+    return f'<span class="vibe-tag" style="background:{bg};color:{color};border:1px solid {color}44">{vibe.upper()}</span>'
+
+
 # ── Header ────────────────────────────────────────────────────────────────────
 high_heat = len([p for p in st.session_state.pending_polls if p.get("controversy_score", 0) >= 8])
+genz_count = len([p for p in st.session_state.pending_polls if p.get("genz_mode")])
 st.markdown(f"""
 <div class="main-header">
   <div>
@@ -192,6 +269,10 @@ st.markdown(f"""
       <div style="font-size:22px; font-weight:700; color:#ff0050">{high_heat}</div>
       <div style="font-size:9px; color:#555; letter-spacing:1px">🔥 HIGH HEAT</div>
     </div>
+    <div style="text-align:center">
+      <div style="font-size:22px; font-weight:700; color:#a855f7">{genz_count}</div>
+      <div style="font-size:9px; color:#555; letter-spacing:1px">⚡ GEN Z</div>
+    </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -210,6 +291,22 @@ tab_gen, tab_review, tab_approved, tab_logs = st.tabs([
 # ═════════════════════════════════════════════════════════════════════════════
 with tab_gen:
 
+    # ── Gen Z Mode Toggle ─────────────────────────────────────────────────────
+    gz_col, _ = st.columns([2, 5])
+    with gz_col:
+        genz_mode = st.toggle(
+            "⚡ Gen Z Mode (Max Controversy)",
+            value=st.session_state.genz_mode,
+            help="Cranks up the prompt aggression for spicier, more culture-war-y polls. Uses a higher LLM temperature.",
+        )
+        st.session_state.genz_mode = genz_mode
+
+    if genz_mode:
+        st.markdown(
+            '<div class="genz-mode-banner">🔥 GEN Z MODE ON — Prompts are maximally aggressive. Expect hot takes, drama, and unhinged predictions. Temperature: 0.97</div>',
+            unsafe_allow_html=True,
+        )
+
     st.markdown('<div class="section-label">SELECT SOURCE</div>', unsafe_allow_html=True)
     source_choice = st.radio(
         "source", ["🏏  Reddit India", "📰  NewsAPI", "🌐  GNews", "✍️  Manual Topic"],
@@ -221,18 +318,34 @@ with tab_gen:
 
     if "Reddit" in source_choice:
         st.markdown('<div class="section-label">REDDIT CONFIG</div>', unsafe_allow_html=True)
+
+        # Theme-based quick selects
+        st.caption("Quick theme presets:")
+        preset_cols = st.columns(len(SUBREDDIT_OPTIONS))
+        selected_preset_subs = set()
+        for i, (theme, subs) in enumerate(SUBREDDIT_OPTIONS.items()):
+            with preset_cols[i]:
+                if st.button(theme, use_container_width=True, key=f"preset_{i}"):
+                    selected_preset_subs.update(subs)
+
         rc1, rc2, rc3 = st.columns([3, 1, 1])
         with rc1:
             subreddits = st.multiselect(
                 "Subreddits",
-                ["india", "Cricket", "bollywood", "IndianStreetBets", "CryptoCurrencyIndia",
-                 "IndiaTech", "ipl", "IndianGaming", "Entrepreneur", "startups", "bollywoodmemes"],
-                default=["india", "Cricket", "bollywood", "IndianStreetBets"],
+                ALL_SUBREDDITS,
+                default=list(selected_preset_subs) if selected_preset_subs else DEFAULT_SUBREDDITS,
+                help="Mix subreddits across themes for more diverse polls. GenZ controversy subreddits (AskIndia, RelationshipIndia, BollyBlindsNGossip) produce the spiciest content.",
             )
         with rc2:
             reddit_sort = st.selectbox("Sort", ["hot", "top", "rising"])
         with rc3:
             reddit_limit = st.slider("Posts/sub", 5, 25, 10)
+
+        # Show subreddit theme info
+        if subreddits:
+            st.markdown("**Selected subreddits:**")
+            badge_html = " ".join([f'<span class="subreddit-chip">r/{s}</span>' for s in subreddits])
+            st.markdown(badge_html, unsafe_allow_html=True)
 
     elif "NewsAPI" in source_choice:
         st.markdown('<div class="section-label">NEWSAPI CONFIG</div>', unsafe_allow_html=True)
@@ -260,15 +373,22 @@ with tab_gen:
 
     # Generation settings inline
     st.markdown('<div class="section-label">GENERATION SETTINGS</div>', unsafe_allow_html=True)
-    gs1, gs2, gs3 = st.columns(3)
+    gs1, gs2, gs3, gs4 = st.columns(4)
     with gs1:
-        polls_per_source = st.slider("Polls to generate", 4, 12, 8)
+        polls_per_source = st.slider("Polls to generate", 4, 16, 8)
     with gs2:
-        min_controversy = st.slider("Min controversy score", 1, 10, 6,
-                                    help="Polls scoring below this are discarded")
+        min_controversy = st.slider(
+            "Min controversy score", 1, 10, 7,
+            help="Polls scoring below this are discarded. GenZ-relevant polls should be 7+."
+        )
     with gs3:
-        cat_filter_gen = st.multiselect("Restrict to categories", CATEGORIES,
-                                         placeholder="All categories")
+        cat_filter_gen = st.multiselect("Restrict to categories", CATEGORIES, placeholder="All categories")
+    with gs4:
+        vibe_filter = st.multiselect(
+            "Filter by vibe",
+            ["Spicy", "Drama", "Clout", "Grind", "Cope", "Wild", "Tea"],
+            placeholder="All vibes",
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
     generate_btn = st.button("⚡  GENERATE POLLS", type="primary", use_container_width=True)
@@ -290,29 +410,26 @@ with tab_gen:
             raw_items = []
 
             try:
-                # ── Scrape ────────────────────────────────────────────────────
                 if "Reddit" in source_choice:
                     status.info("🔄 Scraping Reddit posts...")
-                    add_log(f"Scraping Reddit: {', '.join(subreddits)}")
-                    
-                    # Calculate polls per subreddit
+                    add_log(f"Scraping Reddit: {', '.join(subreddits)} | GenZ Mode: {genz_mode}")
+
                     polls_per_sub = max(1, polls_per_source // len(subreddits))
                     all_new_polls = []
-                    
+
                     for sub_idx, sub_name in enumerate(subreddits):
                         progress.progress(
                             10 + int(40 * sub_idx / len(subreddits)),
                             text=f"Scraping r/{sub_name}..."
                         )
                         status.info(f"🔄 Scraping r/{sub_name}...")
-                        
+
                         sub_posts = fetch_reddit_posts(None, None, [sub_name], reddit_sort, reddit_limit)
-                        # Store last scraped posts so titles/links can be inspected in the UI
                         st.session_state.last_scraped_posts[sub_name] = sub_posts or []
                         if not sub_posts:
                             add_log(f"⚠️ No posts from r/{sub_name}, skipping")
                             continue
-                        
+
                         sub_raw_items = [
                             f"{p['title']} · ⬆️{p['score']} 💬{p['comments']}"
                             for p in sub_posts
@@ -322,15 +439,15 @@ with tab_gen:
                             for p in sub_posts
                         ])
                         source_label = f"Reddit · r/{sub_name}"
-                        
+
                         context_text = filter_political_content(context_text)
-                        
+
                         progress.progress(
                             10 + int(40 * (sub_idx + 0.5) / len(subreddits)),
                             text=f"Generating polls for r/{sub_name}..."
                         )
-                        status.info(f"🤖 Generating {polls_per_sub} polls from r/{sub_name}...")
-                        
+                        status.info(f"🤖 Generating {polls_per_sub} polls from r/{sub_name}... {'⚡ Gen Z Mode' if genz_mode else ''}")
+
                         allowed_cats = cat_filter_gen if cat_filter_gen else CATEGORIES
                         sub_polls = generate_polls_from_context(
                             api_key=GROQ_KEY,
@@ -339,26 +456,27 @@ with tab_gen:
                             n_polls=polls_per_sub,
                             categories=allowed_cats,
                             source_label=source_label,
+                            genz_mode=genz_mode,
                         )
-                        
-                        # Tag each poll with its exact subreddit and matching source posts
+
                         for p in sub_polls:
                             p["source_items"] = sub_raw_items
                             p["subreddit"] = sub_name
-                        
+
                         add_log(f"r/{sub_name}: {len(sub_polls)} polls generated from {len(sub_posts)} posts")
                         all_new_polls.extend(sub_polls)
-                    
-                    # Apply controversy filter
+
+                    # Apply filters
                     filtered = [
                         p for p in all_new_polls
                         if p.get("controversy_score", 0) >= min_controversy
                         and (not cat_filter_gen or p.get("category") in cat_filter_gen)
+                        and (not vibe_filter or p.get("vibe") in vibe_filter)
                     ]
                     discarded = len(all_new_polls) - len(filtered)
                     st.session_state.pending_polls.extend(filtered)
-                    add_log(f"✅ {len(filtered)} polls added, {discarded} discarded")
-                    
+                    add_log(f"✅ {len(filtered)} polls added, {discarded} discarded (score/vibe filter)")
+
                     progress.progress(100, text="Done!")
                     status.success(f"✅ {len(filtered)} polls ready — head to REVIEW tab!")
                     time.sleep(1.5)
@@ -379,6 +497,31 @@ with tab_gen:
                     add_log(f"Fetched {len(articles)} articles")
                     progress.progress(30, text=f"Got {len(articles)} articles...")
 
+                    status.info(f"🤖 Generating polls... {'⚡ Gen Z Mode' if genz_mode else ''}")
+                    context_text = filter_political_content(context_text)
+                    allowed_cats = cat_filter_gen if cat_filter_gen else CATEGORIES
+                    new_polls = generate_polls_from_context(
+                        api_key=GROQ_KEY, model=GROQ_MODEL, context=context_text,
+                        n_polls=polls_per_source, categories=allowed_cats,
+                        source_label=source_label, genz_mode=genz_mode,
+                    )
+                    for p in new_polls:
+                        p["source_items"] = raw_items
+                    filtered = [
+                        p for p in new_polls
+                        if p.get("controversy_score", 0) >= min_controversy
+                        and (not cat_filter_gen or p.get("category") in cat_filter_gen)
+                        and (not vibe_filter or p.get("vibe") in vibe_filter)
+                    ]
+                    st.session_state.pending_polls.extend(filtered)
+                    add_log(f"✅ {len(filtered)} polls added from NewsAPI")
+                    progress.progress(100, text="Done!")
+                    status.success(f"✅ {len(filtered)} polls ready!")
+                    time.sleep(1.5)
+                    status.empty()
+                    progress.empty()
+                    st.rerun()
+
                 elif "GNews" in source_choice:
                     status.info("🔄 Fetching from GNews...")
                     add_log(f"GNews topic: {gnews_topic}")
@@ -392,14 +535,61 @@ with tab_gen:
                     add_log(f"Fetched {len(articles)} articles")
                     progress.progress(30, text=f"Got {len(articles)} articles...")
 
+                    status.info(f"🤖 Generating polls... {'⚡ Gen Z Mode' if genz_mode else ''}")
+                    context_text = filter_political_content(context_text)
+                    allowed_cats = cat_filter_gen if cat_filter_gen else CATEGORIES
+                    new_polls = generate_polls_from_context(
+                        api_key=GROQ_KEY, model=GROQ_MODEL, context=context_text,
+                        n_polls=polls_per_source, categories=allowed_cats,
+                        source_label=source_label, genz_mode=genz_mode,
+                    )
+                    for p in new_polls:
+                        p["source_items"] = raw_items
+                    filtered = [
+                        p for p in new_polls
+                        if p.get("controversy_score", 0) >= min_controversy
+                        and (not cat_filter_gen or p.get("category") in cat_filter_gen)
+                        and (not vibe_filter or p.get("vibe") in vibe_filter)
+                    ]
+                    st.session_state.pending_polls.extend(filtered)
+                    add_log(f"✅ {len(filtered)} polls added from GNews")
+                    progress.progress(100, text="Done!")
+                    status.success(f"✅ {len(filtered)} polls ready!")
+                    time.sleep(1.5)
+                    status.empty()
+                    progress.empty()
+                    st.rerun()
+
                 else:
                     raw_items = [manual_topic]
-                    context_text = manual_topic
+                    context_text = filter_political_content(manual_topic)
                     source_label = "Manual Input"
                     progress.progress(30, text="Using manual input...")
                     add_log("Manual topic input used")
 
-                
+                    status.info(f"🤖 Generating polls... {'⚡ Gen Z Mode' if genz_mode else ''}")
+                    allowed_cats = cat_filter_gen if cat_filter_gen else CATEGORIES
+                    new_polls = generate_polls_from_context(
+                        api_key=GROQ_KEY, model=GROQ_MODEL, context=context_text,
+                        n_polls=polls_per_source, categories=allowed_cats,
+                        source_label=source_label, genz_mode=genz_mode,
+                    )
+                    for p in new_polls:
+                        p["source_items"] = raw_items
+                    filtered = [
+                        p for p in new_polls
+                        if p.get("controversy_score", 0) >= min_controversy
+                        and (not cat_filter_gen or p.get("category") in cat_filter_gen)
+                        and (not vibe_filter or p.get("vibe") in vibe_filter)
+                    ]
+                    st.session_state.pending_polls.extend(filtered)
+                    add_log(f"✅ {len(filtered)} polls added from manual input")
+                    progress.progress(100, text="Done!")
+                    status.success(f"✅ {len(filtered)} polls ready!")
+                    time.sleep(1.5)
+                    status.empty()
+                    progress.empty()
+                    st.rerun()
 
             except Exception as e:
                 status.error(f"❌ {str(e)}")
@@ -438,16 +628,22 @@ with tab_review:
           </div>
         </div>""", unsafe_allow_html=True)
     else:
-        fc1, fc2 = st.columns([2, 5])
+        fc1, fc2, fc3 = st.columns([2, 2, 3])
         with fc1:
             cat_filter = st.selectbox("Filter category", ["All"] + CATEGORIES, key="review_cat_filter")
         with fc2:
+            score_filter = st.selectbox("Min score", ["All", "7+", "8+", "9+", "10"], key="review_score_filter")
+        with fc3:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.caption(f"{len(pending)} polls pending · filtered by: {cat_filter}")
+            st.caption(f"{len(pending)} polls pending")
+
+        min_score_map = {"All": 0, "7+": 7, "8+": 8, "9+": 9, "10": 10}
+        min_score_val = min_score_map.get(score_filter, 0)
 
         display_polls = [
             (i, p) for i, p in enumerate(pending)
-            if cat_filter == "All" or p.get("category") == cat_filter
+            if (cat_filter == "All" or p.get("category") == cat_filter)
+            and p.get("controversy_score", 0) >= min_score_val
         ]
 
         st.markdown("---")
@@ -459,23 +655,28 @@ with tab_review:
             score     = poll.get("controversy_score", 5)
             pid       = poll.get("id", str(orig_idx))
             score_cls = "controversy-high" if score >= 8 else "controversy-med" if score >= 6 else "controversy-low"
+            is_genz   = poll.get("genz_mode", False)
+            vibe      = poll.get("vibe", "")
+
+            card_class = "poll-card-genz" if is_genz else "poll-card"
 
             with st.container():
-                st.markdown('<div class="poll-card">', unsafe_allow_html=True)
+                st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
 
                 h1, h2, h3 = st.columns([5, 1, 1])
                 with h1:
-                    # Optional subreddit badge (present for Reddit-generated polls)
                     _sub = poll.get("subreddit")
                     subreddit_tag = ""
                     if _sub:
                         subreddit_tag = (
                             f'<span class="tag" style="margin-left:6px;background:#0ea5e922;color:#0ea5e9;border:1px solid #0ea5e955">r/{_sub}</span>'
                         )
+                    genz_tag = '<span class="tag" style="background:#6b21a822;color:#a855f7;border:1px solid #6b21a855">⚡ GENZ</span>' if is_genz else ""
+                    vibe_html = vibe_badge(vibe) if vibe else ""
 
                     st.markdown(
                         f'<span class="tag" style="background:{cat_color}22;color:{cat_color};border:1px solid {cat_color}55">{cat.upper()}</span>'
-                        f'{subreddit_tag}'
+                        f'{subreddit_tag}{genz_tag}{vibe_html}'
                         f'<span class="source-badge">{poll.get("source","?")}</span>',
                         unsafe_allow_html=True
                     )
@@ -525,7 +726,7 @@ with tab_review:
 
                 with st.expander("✏️ Edit"):
                     new_q = st.text_input("Question", value=poll.get("question", ""), key=f"q_{pid}")
-                    e1, e2, e3 = st.columns(3)
+                    e1, e2, e3, e4 = st.columns(4)
                     with e1:
                         new_cat = st.selectbox("Category", CATEGORIES,
                                                index=CATEGORIES.index(cat) if cat in CATEGORIES else 0,
@@ -535,12 +736,15 @@ with tab_review:
                     with e3:
                         new_pool = st.number_input("Token Pool", value=int(poll.get("token_pool", 1000)),
                                                    step=500, key=f"pool_{pid}")
+                    with e4:
+                        new_score = st.number_input("Controversy Score", value=int(poll.get("controversy_score", 5)),
+                                                    min_value=1, max_value=10, key=f"score_{pid}")
                     new_res = st.text_area("Resolution Condition", value=poll.get("resolution", ""), key=f"res_{pid}")
                     if st.button("💾 Save", key=f"save_{pid}"):
                         st.session_state.pending_polls[orig_idx].update({
                             "question": new_q, "category": new_cat,
                             "deadline": new_dl, "token_pool": new_pool,
-                            "resolution": new_res,
+                            "resolution": new_res, "controversy_score": new_score,
                         })
                         st.success("Saved!")
                         st.rerun()
@@ -589,7 +793,6 @@ with tab_approved:
           </div>
         </div>""", unsafe_allow_html=True)
     else:
-        # Export buttons at top
         st.markdown('<div class="section-label">EXPORT</div>', unsafe_allow_html=True)
         ex1, ex2, ex3 = st.columns([1, 1, 4])
         with ex1:
@@ -605,21 +808,41 @@ with tab_approved:
 
         st.markdown("---")
 
-        af1, _ = st.columns([2, 5])
+        af1, af2 = st.columns([2, 2])
         with af1:
             approved_cat_filter = st.selectbox("Filter", ["All"] + CATEGORIES, key="approved_cat_filter")
+        with af2:
+            approved_vibe_filter = st.selectbox(
+                "Filter by vibe", ["All", "Spicy", "Drama", "Clout", "Grind", "Cope", "Wild", "Tea"],
+                key="approved_vibe_filter"
+            )
 
-        display_approved = approved if approved_cat_filter == "All" else [
-            p for p in approved if p.get("category") == approved_cat_filter
+        display_approved = [
+            p for p in approved
+            if (approved_cat_filter == "All" or p.get("category") == approved_cat_filter)
+            and (approved_vibe_filter == "All" or p.get("vibe") == approved_vibe_filter)
         ]
 
-        # Summary table
+        # Analytics summary
+        if display_approved:
+            avg_score = sum(p.get("controversy_score", 5) for p in display_approved) / len(display_approved)
+            genz_pct = 100 * sum(1 for p in display_approved if p.get("genz_mode")) / len(display_approved)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Approved", len(display_approved))
+            m2.metric("Avg Controversy", f"{avg_score:.1f}/10")
+            m3.metric("Gen Z Mode %", f"{genz_pct:.0f}%")
+            m4.metric("High Heat (8+)", sum(1 for p in display_approved if p.get("controversy_score", 0) >= 8))
+
+        st.markdown("---")
+
         df_data = [{
             "Category":  p.get("category", ""),
             "Question":  p.get("question", "")[:85] + ("..." if len(p.get("question", "")) > 85 else ""),
             "🔥 Score":  p.get("controversy_score", ""),
+            "Vibe":      p.get("vibe", ""),
             "⚡ Tokens": f'{p.get("token_pool", 0):,}',
             "Deadline":  p.get("deadline", ""),
+            "Gen Z":     "⚡" if p.get("genz_mode") else "",
             "Approved":  p.get("approved_at", "")[:10],
         } for p in display_approved]
         st.dataframe(pd.DataFrame(df_data), use_container_width=True, hide_index=True)
@@ -629,9 +852,13 @@ with tab_approved:
         for poll in display_approved:
             cat = poll.get("category", "?")
             cat_color = CATEGORY_COLORS.get(cat, "#555")
+            vibe = poll.get("vibe", "")
+            vibe_html = vibe_badge(vibe) if vibe else ""
+            genz_badge = '<span style="color:#a855f7;font-size:10px;font-family:Space Mono,monospace">⚡ GENZ</span>' if poll.get("genz_mode") else ""
             st.markdown(f"""
 <div class="approved-card">
   <span class="tag" style="background:{cat_color}22;color:{cat_color};border:1px solid {cat_color}44">{cat.upper()}</span>
+  {vibe_html}{genz_badge}
   <span style="font-size:10px;color:#10b981;margin-left:8px;font-family:Space Mono,monospace">
     ● APPROVED {poll.get("approved_at","")[:10]}
   </span>
