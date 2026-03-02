@@ -4,25 +4,32 @@ before sending to the LLM, so it doesn't generate political polls.
 """
 import re
 
-# Keywords that flag political content
+# Keywords that flag overtly political content
+# NOTE: Kept tight — we want to allow social/cultural controversy but block party politics
 POLITICAL_KEYWORDS = [
     # Parties
-    "bjp", "congress", "aap", "bsp", "sp ", "tmc", "ncp", "rjd", "jdu", "shiv sena",
+    "bjp", "congress", "aap", "bsp", "tmc", "ncp", "rjd", "jdu", "shiv sena",
     "ysrcp", "tdp", "dmk", "aiadmk", "brs", "telangana rashtra",
-    # Politicians (keep general)
-    "modi", "rahul gandhi", "kejriwal", "mamata", "yogi", "cm ", "pm ", "mp ",
-    "chief minister", "prime minister", "minister", "lok sabha", "rajya sabha",
-    "parliament", "mla", "member of parliament",
-    # Political events
-    "election", "vote", "voting", "ballot", "constituency", "exit poll",
-    "manifesto", "coalition", "government policy", "budget 20",
-    "gst rate", "income tax slab",
+    # Politicians
+    "modi", "rahul gandhi", "kejriwal", "mamata", "yogi adityanath",
+    "chief minister", "prime minister",
+    "lok sabha", "rajya sabha", "parliament",
+    "member of parliament", "mla",
+    # Electoral
+    "election", "ballot", "exit poll", "manifesto", "constituency",
+    "government policy", "budget 20", "gst rate", "income tax slab",
     # Sensitive geopolitical
-    "kashmir", "article 370", "ram mandir", "citizenship", "caa", "nrc",
-    "uniform civil code", "ucc", "reservation quota", "obc", "sc st",
+    "article 370", "citizenship amendment", "uniform civil code",
+    "reservation quota",
 ]
 
-# Compiled regex for speed
+# NOTE: We intentionally do NOT filter:
+# - "cm " (could be centimetres), "pm " (could be evening time), "mp " (could be megapixels)
+# - Kashmir (can appear in non-political travel/culture context)
+# - "minister" alone (too broad — blocks business/entertainment content)
+# - Caste system (important social issue GenZ discusses)
+# - "sc st" — too broad, blocks legitimate social discussion
+
 _PATTERN = re.compile(
     r"\b(" + "|".join(re.escape(k) for k in POLITICAL_KEYWORDS) + r")\b",
     re.IGNORECASE,
